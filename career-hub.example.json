@@ -1,0 +1,135 @@
+{
+  "next_application_id": 4,
+  "next_contact_id": 3,
+  "next_activity_id": 7,
+  "goals": {
+    "applications": 5,
+    "networking": 3,
+    "actions": 5
+  },
+  "easter_eggs": {
+    "theme": "ocean",
+    "unlocked_themes": {
+      "ocean": true
+    }
+  },
+  "applications": [
+    {
+      "id": 1,
+      "company": "Northstar Systems",
+      "role": "Data Analyst",
+      "location": "Seattle, WA",
+      "url": "https://example.com/northstar-data-analyst",
+      "source": "Company site",
+      "date": "2026-07-07",
+      "applied_date": "2026-07-07",
+      "status": "Applied",
+      "notes": "Fictional demo record"
+    },
+    {
+      "id": 2,
+      "company": "Atlas Commerce",
+      "role": "Business Operations Analyst",
+      "location": "Remote, US",
+      "url": "https://example.com/atlas-operations",
+      "source": "Referral",
+      "date": "2026-07-09",
+      "applied_date": "2026-07-09",
+      "status": "Interview",
+      "notes": "Fictional demo record"
+    },
+    {
+      "id": 3,
+      "company": "Harbor Labs",
+      "role": "Product Analyst",
+      "location": "Austin, TX",
+      "url": "https://example.com/harbor-product-analyst",
+      "source": "LinkedIn",
+      "date": "2026-07-12",
+      "status": "Prospect",
+      "notes": "Fictional demo record"
+    }
+  ],
+  "contacts": [
+    {
+      "id": 1,
+      "name": "Jordan Lee",
+      "company": "Northstar Systems",
+      "title": "Analytics Manager",
+      "relationship": "Former classmate",
+      "profile_url": "https://example.com/jordan-lee",
+      "last_contact": "2026-07-10",
+      "next_followup": "2026-07-17",
+      "status": "Replied",
+      "notes": "Fictional demo contact"
+    },
+    {
+      "id": 2,
+      "name": "Taylor Morgan",
+      "company": "Atlas Commerce",
+      "title": "Recruiter",
+      "relationship": "Recruiter outreach",
+      "profile_url": "",
+      "last_contact": "",
+      "next_followup": "",
+      "status": "To Reach Out",
+      "notes": "Fictional demo contact"
+    }
+  ],
+  "activities": [
+    {
+      "id": 1,
+      "entity_type": "Application",
+      "entity_id": 1,
+      "subject": "Northstar Systems — Data Analyst",
+      "action": "Created",
+      "detail": "Added as Prospect",
+      "occurred_at": "2026-07-07T09:15:00-07:00"
+    },
+    {
+      "id": 2,
+      "entity_type": "Application",
+      "entity_id": 1,
+      "subject": "Northstar Systems — Data Analyst",
+      "action": "Status changed",
+      "detail": "Prospect → Applied · application date recorded",
+      "occurred_at": "2026-07-07T09:16:00-07:00"
+    },
+    {
+      "id": 3,
+      "entity_type": "Application",
+      "entity_id": 2,
+      "subject": "Atlas Commerce — Business Operations Analyst",
+      "action": "Status changed",
+      "detail": "Applied → Interview",
+      "occurred_at": "2026-07-09T14:20:00-07:00"
+    },
+    {
+      "id": 4,
+      "entity_type": "Networking",
+      "entity_id": 1,
+      "subject": "Jordan Lee — Northstar Systems",
+      "action": "Status changed",
+      "detail": "Sent → Replied",
+      "occurred_at": "2026-07-10T11:00:00-07:00"
+    },
+    {
+      "id": 5,
+      "entity_type": "Application",
+      "entity_id": 3,
+      "subject": "Harbor Labs — Product Analyst",
+      "action": "Created",
+      "detail": "Added as Prospect",
+      "occurred_at": "2026-07-12T10:30:00-07:00"
+    },
+    {
+      "id": 6,
+      "entity_type": "Networking",
+      "entity_id": 2,
+      "subject": "Taylor Morgan — Atlas Commerce",
+      "action": "Created",
+      "detail": "Added to outreach list",
+      "occurred_at": "2026-07-12T15:45:00-07:00"
+    }
+  ]
+}

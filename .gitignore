@@ -1,0 +1,12 @@
+# Private local tracker data
+career-hub.json
+*.json.bak
+
+# Locally compiled executables
+career-hub
+career-hub.exe
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
