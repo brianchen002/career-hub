@@ -1,7 +1,8 @@
 {
   "next_application_id": 4,
   "next_contact_id": 3,
-  "next_activity_id": 7,
+  "next_task_id": 3,
+  "next_activity_id": 9,
   "goals": {
     "applications": 5,
     "networking": 3,
@@ -76,6 +77,22 @@
       "notes": "Fictional demo contact"
     }
   ],
+  "tasks": [
+    {
+      "id": 1,
+      "text": "Prepare two questions for the Northstar interview",
+      "done": false,
+      "created_at": "2026-07-12T16:00:00-07:00",
+      "updated_at": "2026-07-12T16:00:00-07:00"
+    },
+    {
+      "id": 2,
+      "text": "Send a thank-you note to the referral contact",
+      "done": true,
+      "created_at": "2026-07-11T10:00:00-07:00",
+      "updated_at": "2026-07-12T09:00:00-07:00"
+    }
+  ],
   "activities": [
     {
       "id": 1,
@@ -130,6 +147,24 @@
       "action": "Created",
       "detail": "Added to outreach list",
       "occurred_at": "2026-07-12T15:45:00-07:00"
+    },
+    {
+      "id": 7,
+      "entity_type": "Task",
+      "entity_id": 1,
+      "subject": "Prepare two questions for the Northstar interview",
+      "action": "Created",
+      "detail": "Added to task pad",
+      "occurred_at": "2026-07-12T16:00:00-07:00"
+    },
+    {
+      "id": 8,
+      "entity_type": "Task",
+      "entity_id": 2,
+      "subject": "Send a thank-you note to the referral contact",
+      "action": "Status changed",
+      "detail": "Open → Done",
+      "occurred_at": "2026-07-12T09:00:00-07:00"
     }
   ]
 }

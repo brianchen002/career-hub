@@ -275,6 +275,54 @@ func TestBootViewUsesSteamworksTerminalIdentity(t *testing.T) {
 	}
 }
 
+func TestTaskPadPersistsFreeformNoteAndCompletion(t *testing.T) {
+	path := t.TempDir() + "/career-hub.json"
+	m := model{
+		path:    path,
+		section: tasksSection,
+		data: dataFile{
+			NextTaskID:     1,
+			NextActivityID: 1,
+		},
+		form: formState{values: []string{"Follow up with the alumni referral on Friday"}},
+	}
+
+	updated, _ := m.saveForm()
+	saved := updated.(model)
+	if len(saved.data.Tasks) != 1 || saved.data.Tasks[0].Done || saved.data.Tasks[0].Text != "Follow up with the alumni referral on Friday" {
+		t.Fatalf("task note was not added correctly: %#v", saved.data.Tasks)
+	}
+	if len(saved.data.Activities) != 1 || saved.data.Activities[0].EntityType != "Task" || saved.data.Activities[0].Action != "Created" {
+		t.Fatalf("task creation was not added to the timeline: %#v", saved.data.Activities)
+	}
+
+	saved.setStatus(1, "Done")
+	if !saved.data.Tasks[0].Done || len(saved.data.Activities) != 2 {
+		t.Fatalf("task completion was not persisted: %#v", saved.data)
+	}
+	reloaded, err := loadData(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reloaded.Tasks) != 1 || !reloaded.Tasks[0].Done || reloaded.NextTaskID != 2 {
+		t.Fatalf("task pad did not survive reload: %#v", reloaded)
+	}
+}
+
+func TestTaskPadFiltersOpenAndDoneNotes(t *testing.T) {
+	m := model{section: tasksSection, tab: 1, data: dataFile{Tasks: []task{
+		{ID: 1, Text: "Open note", Done: false},
+		{ID: 2, Text: "Completed note", Done: true},
+	}}}
+	if visible := m.visibleIndices(); len(visible) != 1 || m.data.Tasks[visible[0]].ID != 1 {
+		t.Fatalf("open filter returned wrong task notes: %#v", visible)
+	}
+	m.tab = 2
+	if visible := m.visibleIndices(); len(visible) != 1 || m.data.Tasks[visible[0]].ID != 2 {
+		t.Fatalf("done filter returned wrong task notes: %#v", visible)
+	}
+}
+
 func contains(value, substring string) bool {
 	for index := 0; index+len(substring) <= len(value); index++ {
 		if value[index:index+len(substring)] == substring {

@@ -25,6 +25,7 @@ data. Career Hub keeps the useful parts local:
 
 - Track applications from Prospect through Offer.
 - Keep a lightweight networking CRM with follow-up dates and context.
+- Keep a freeform **Task Pad** for reminders, checklists, and job-search notes.
 - See weekly/monthly submission momentum, pipeline conversion, and networking health.
 - Attribute results to channels such as LinkedIn, referrals, recruiters, and company sites.
 - Maintain a local audit timeline of the changes you actually make.
@@ -121,18 +122,22 @@ last-contact date, and next follow-up. Statuses are:
   only; Remote and unrecognized locations are kept separate.
 - Press `6` for **Mission Control**. Press `g` to set your weekly goals and
   `y` to select an unlocked terminal palette.
+- Press `7` for **Task Pad**. Add any note with `a`, edit it with `e`, mark it
+  Done with `x` (or choose a state with `c`), and use `D` only when you want
+  to remove it permanently. Task Pad notes are intentionally freeform: use
+  them for reminders, research, follow-ups, preparation, or any short thought.
 
 ## Keyboard reference
 
 | Key | Action |
 | --- | --- |
-| `1`–`6` | Open Applications, Networking, Insights, Timeline, Geography, or Mission Control |
+| `1`–`7` | Open Applications, Networking, Insights, Timeline, Geography, Mission Control, or Task Pad |
 | `↑` / `↓` or `j` / `k` | Move selection |
 | `←` / `→` or `h` / `l` | Switch status/filter tabs where available |
 | `a` | Add an application or networking contact |
 | `e` | Edit selected record |
 | `c` | Change selected record status |
-| `x` | Archive selected record |
+| `x` | Archive selected application/contact; mark selected Task Pad note Done |
 | `D` | Permanently delete selected record (confirmation required) |
 | `o` | Open saved job or profile URL in the default browser |
 | `g` | Set weekly goals in Mission Control |
@@ -146,7 +151,7 @@ Inside an add/edit form, use `Tab`, `Enter`, `↑`, or `↓` to move fields,
 ## Data and privacy
 
 All mutable data lives in one local JSON file, `career-hub.json`. It contains
-applications, networking contacts, goals, activities, and theme unlocks. It is
+applications, networking contacts, Task Pad notes, goals, activities, and theme unlocks. It is
 not read by the program over the network and is listed in `.gitignore`.
 
 The program ships with public U.S. state geometry in

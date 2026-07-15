@@ -72,6 +72,16 @@ type contact struct {
 	Notes        string `json:"notes"`
 }
 
+// task is a deliberately lightweight personal note. It has no external
+// integration, so it can be used for any job-search reminder or freeform note.
+type task struct {
+	ID        int    `json:"id"`
+	Text      string `json:"text"`
+	Done      bool   `json:"done"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
 type activity struct {
 	ID         int    `json:"id"`
 	EntityType string `json:"entity_type"`
@@ -85,11 +95,13 @@ type activity struct {
 type dataFile struct {
 	NextApplicationID int           `json:"next_application_id"`
 	NextContactID     int           `json:"next_contact_id"`
+	NextTaskID        int           `json:"next_task_id"`
 	NextActivityID    int           `json:"next_activity_id"`
 	Goals             weeklyGoals   `json:"goals"`
 	EasterEggs        easterEggs    `json:"easter_eggs"`
 	Applications      []application `json:"applications"`
 	Contacts          []contact     `json:"contacts"`
+	Tasks             []task        `json:"tasks"`
 	Activities        []activity    `json:"activities"`
 }
 
@@ -134,6 +146,7 @@ const (
 	timelineSection
 	geographySection
 	missionSection
+	tasksSection
 )
 
 type screen int
@@ -438,6 +451,8 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.section, m.tab, m.cursor = geographySection, 0, 0
 	case "6":
 		m.section, m.tab, m.cursor = missionSection, 0, 0
+	case "7":
+		m.section, m.tab, m.cursor = tasksSection, 0, 0
 	case "left", "h":
 		if m.section != geographySection && m.section != missionSection {
 			m.tab = (m.tab - 1 + len(m.sectionTabs())) % len(m.sectionTabs())
@@ -482,8 +497,13 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "x":
 		if m.hasSelection() {
-			m.setStatus(m.selectedID(), "Archived")
-			m.message = "Archived selected record."
+			if m.section == tasksSection {
+				m.setStatus(m.selectedID(), "Done")
+				m.message = "Marked selected note as done."
+			} else {
+				m.setStatus(m.selectedID(), "Archived")
+				m.message = "Archived selected record."
+			}
 		}
 	case "D":
 		if m.hasSelection() {
@@ -514,8 +534,10 @@ func (m *model) startNewForm() {
 	m.view = formScreen
 	if m.section == applicationsSection {
 		m.form = formState{values: []string{"", "", "", "", "", time.Now().Format("2006-01-02"), ""}}
-	} else {
+	} else if m.section == networkingSection {
 		m.form = formState{values: []string{"", "", "", "", "", "", time.Now().Format("2006-01-02"), ""}}
+	} else {
+		m.form = formState{values: []string{""}}
 	}
 }
 
@@ -559,6 +581,10 @@ func (m *model) startEditForm() {
 	if c, ok := m.selectedContact(); ok {
 		m.view = formScreen
 		m.form = formState{editing: true, id: c.ID, values: []string{c.Name, c.Company, c.Title, c.Relationship, c.ProfileURL, c.LastContact, c.NextFollowup, c.Notes}}
+	}
+	if t, ok := m.selectedTask(); ok {
+		m.view = formScreen
+		m.form = formState{editing: true, id: t.ID, values: []string{t.Text}}
 	}
 }
 
@@ -729,7 +755,7 @@ func (m model) saveForm() (tea.Model, tea.Cmd) {
 			m.addActivity("Application", j.ID, applicationSubject(j), "Created", "Added as Prospect")
 			m.message = "Added " + company + " — " + role
 		}
-	} else {
+	} else if m.section == networkingSection {
 		name := strings.TrimSpace(m.form.values[0])
 		if name == "" {
 			m.message = badStyle.Render("Contact name is required.")
@@ -752,6 +778,30 @@ func (m model) saveForm() (tea.Model, tea.Cmd) {
 			m.data.Contacts = append(m.data.Contacts, c)
 			m.addActivity("Networking", c.ID, contactSubject(c), "Created", "Added to outreach list")
 			m.message = "Added " + name
+		}
+	} else {
+		text := strings.TrimSpace(m.form.values[0])
+		if text == "" {
+			m.message = badStyle.Render("Task text is required.")
+			return m, nil
+		}
+		nowTimestamp := time.Now().Format(time.RFC3339)
+		if m.form.editing {
+			for i := range m.data.Tasks {
+				if m.data.Tasks[i].ID == m.form.id {
+					m.data.Tasks[i].Text = text
+					m.data.Tasks[i].UpdatedAt = nowTimestamp
+					m.addActivity("Task", m.form.id, taskSubject(m.data.Tasks[i]), "Updated", "Edited task note")
+					break
+				}
+			}
+			m.message = "Updated task note."
+		} else {
+			t := task{ID: m.data.NextTaskID, Text: text, CreatedAt: nowTimestamp, UpdatedAt: nowTimestamp}
+			m.data.NextTaskID++
+			m.data.Tasks = append(m.data.Tasks, t)
+			m.addActivity("Task", t.ID, taskSubject(t), "Created", "Added to task pad")
+			m.message = "Added task note."
 		}
 	}
 	if err := saveData(m.path, m.data); err != nil {
@@ -792,9 +842,12 @@ func (m model) updateDeletePicker(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		entityType, subject := "Application", m.selectedLabel()
 		if m.section == applicationsSection {
 			m.data.Applications = removeApplication(m.data.Applications, m.deleteID)
-		} else {
+		} else if m.section == networkingSection {
 			entityType = "Networking"
 			m.data.Contacts = removeContact(m.data.Contacts, m.deleteID)
+		} else {
+			entityType = "Task"
+			m.data.Tasks = removeTask(m.data.Tasks, m.deleteID)
 		}
 		m.addActivity(entityType, m.deleteID, subject, "Deleted", "Record permanently removed from tracker")
 		if err := saveData(m.path, m.data); err != nil {
@@ -845,7 +898,7 @@ func (m *model) setStatus(id int, status string) {
 				break
 			}
 		}
-	} else {
+	} else if m.section == networkingSection {
 		hadReply := hasContactStatus(m.data.Contacts, "Replied")
 		for i := range m.data.Contacts {
 			if m.data.Contacts[i].ID == id {
@@ -861,9 +914,24 @@ func (m *model) setStatus(id int, status string) {
 				break
 			}
 		}
+	} else {
+		for i := range m.data.Tasks {
+			if m.data.Tasks[i].ID == id {
+				previous := taskStatus(m.data.Tasks[i])
+				if strings.EqualFold(previous, status) {
+					break
+				}
+				m.data.Tasks[i].Done = strings.EqualFold(status, "Done")
+				m.data.Tasks[i].UpdatedAt = time.Now().Format(time.RFC3339)
+				m.addActivity("Task", id, taskSubject(m.data.Tasks[i]), "Status changed", previous+" → "+taskStatus(m.data.Tasks[i]))
+				break
+			}
+		}
 	}
-	for _, event := range unlockEligibleThemes(&m.data) {
-		m.queueEgg(event)
+	if m.section == applicationsSection || m.section == networkingSection {
+		for _, event := range unlockEligibleThemes(&m.data) {
+			m.queueEgg(event)
+		}
 	}
 	if err := saveData(m.path, m.data); err != nil {
 		m.message = badStyle.Render("Save failed: " + err.Error())
@@ -1141,8 +1209,10 @@ func (m model) viewList() string {
 		b.WriteString(mutedStyle.Render(" to add one."))
 	} else if m.section == applicationsSection {
 		b.WriteString(m.viewApplicationsTable(visible))
-	} else {
+	} else if m.section == networkingSection {
 		b.WriteString(m.viewContactsTable(visible))
+	} else {
+		b.WriteString(m.viewTasksTable(visible))
 	}
 
 	b.WriteString("\n")
@@ -1150,7 +1220,7 @@ func (m model) viewList() string {
 		b.WriteString(m.renderMessage())
 		b.WriteString("\n")
 	}
-	b.WriteString(footerStyle.Render("1/2/3/4/5/6 section  ↑↓/jk navigate  ←→/hl tabs  "))
+	b.WriteString(footerStyle.Render("1/2/3/4/5/6/7 section  ↑↓/jk navigate  ←→/hl tabs  "))
 	b.WriteString(keyStyle.Render("a"))
 	b.WriteString(footerStyle.Render(" add  "))
 	b.WriteString(keyStyle.Render("e"))
@@ -1158,11 +1228,17 @@ func (m model) viewList() string {
 	b.WriteString(keyStyle.Render("c"))
 	b.WriteString(footerStyle.Render(" status  "))
 	b.WriteString(keyStyle.Render("x"))
-	b.WriteString(footerStyle.Render(" archive  "))
+	if m.section == tasksSection {
+		b.WriteString(footerStyle.Render(" complete  "))
+	} else {
+		b.WriteString(footerStyle.Render(" archive  "))
+	}
 	b.WriteString(keyStyle.Render("D"))
 	b.WriteString(footerStyle.Render(" delete  "))
-	b.WriteString(keyStyle.Render("o"))
-	b.WriteString(footerStyle.Render(" open URL  "))
+	if m.section != tasksSection {
+		b.WriteString(keyStyle.Render("o"))
+		b.WriteString(footerStyle.Render(" open URL  "))
+	}
 	b.WriteString(keyStyle.Render("q"))
 	b.WriteString(footerStyle.Render(" quit"))
 	return b.String()
@@ -1179,6 +1255,7 @@ func (m model) sectionToggle() string {
 		{timelineSection, " 4 TIMELINE "},
 		{geographySection, " 5 GEOGRAPHY "},
 		{missionSection, " 6 MISSION CONTROL "},
+		{tasksSection, " 7 TASK PAD "},
 	}
 	if m.width < 108 {
 		sections = []struct {
@@ -1191,6 +1268,7 @@ func (m model) sectionToggle() string {
 			{timelineSection, " 4 LOG "},
 			{geographySection, " 5 MAP "},
 			{missionSection, " 6 MISSION "},
+			{tasksSection, " 7 TASKS "},
 		}
 	}
 	var b strings.Builder
@@ -1264,6 +1342,42 @@ func (m model) viewContactsTable(visible []int) string {
 	return b.String()
 }
 
+func (m model) viewTasksTable(visible []int) string {
+	var b strings.Builder
+	b.WriteString(tableHeaderStyle.Render(fmt.Sprintf("   %-4s %-7s %-72s %-20s", "#", "STATE", "TASK NOTE", "UPDATED")))
+	b.WriteString("\n")
+	rows, cursor := max(4, m.height-16), min(m.cursor, len(visible)-1)
+	start := max(0, cursor-rows/2)
+	end := min(len(visible), start+rows)
+	if end-start < rows {
+		start = max(0, end-rows)
+	}
+	for pos := start; pos < end; pos++ {
+		t := m.data.Tasks[visible[pos]]
+		state := "OPEN"
+		if t.Done {
+			state = "DONE"
+		}
+		line := fmt.Sprintf("%-4d %-7s %-72s %-20s", t.ID, state, truncate(t.Text, 72), formatActivityTime(t.UpdatedAt))
+		b.WriteString(rowMarker(pos == cursor))
+		if t.Done {
+			b.WriteString(mutedStyle.Render(line))
+		} else {
+			b.WriteString(line)
+		}
+		b.WriteString("\n")
+	}
+	if t, ok := m.selectedTask(); ok {
+		state := "OPEN"
+		if t.Done {
+			state = "DONE"
+		}
+		b.WriteString("\n" + brandStyle.Render("▸ NOTE") + "  " + inputStyle.Render(t.Text) + "  " + statusStyle(state).Render(state) + "\n")
+		b.WriteString(systemStyle.Render("  CREATED ") + mutedStyle.Render(formatActivityTime(t.CreatedAt)) + "\n")
+	}
+	return b.String()
+}
+
 func (m model) viewGeography() string {
 	stats := buildGeographyStats(m.data)
 	states := sortedStateCounts(stats.States)
@@ -1317,7 +1431,7 @@ func (m model) viewGeography() string {
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("The map is rendered from bundled U.S. state boundary data. State dots use each state boundary's bounding-box center. Location accepts Seattle, WA or Austin, Texas; Remote and unrecognized locations remain separate."))
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("1/2/3/4/5/6 section  r reload local data  q quit"))
+	b.WriteString(footerStyle.Render("1/2/3/4/5/6/7 section  r reload local data  q quit"))
 	return b.String()
 }
 
@@ -1709,7 +1823,7 @@ func (m model) viewTimeline() string {
 		b.WriteString("\n")
 		b.WriteString(mutedStyle.Render("No activity has been recorded yet."))
 		b.WriteString("\n")
-		b.WriteString(systemStyle.Render("Timeline recording starts with your next add, edit, status change, archive, or delete action."))
+		b.WriteString(systemStyle.Render("Timeline recording starts with your next application, networking, or task-pad action."))
 	} else {
 		b.WriteString(tableHeaderStyle.Render("  WHEN                 SUBJECT                         ACTION              DETAIL"))
 		b.WriteString("\n")
@@ -1733,9 +1847,9 @@ func (m model) viewTimeline() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(mutedStyle.Render("Events are saved in career-hub.json. Use ←/→ or h/l to filter by Applications or Networking."))
+	b.WriteString(mutedStyle.Render("Events are saved in career-hub.json. Use ←/→ or h/l to filter Applications, Networking, or Tasks."))
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("1/2/3/4/5/6 section  ←→/hl filter  r reload local data  q quit"))
+	b.WriteString(footerStyle.Render("1/2/3/4/5/6/7 section  ←→/hl filter  r reload local data  q quit"))
 	return b.String()
 }
 
@@ -1767,10 +1881,14 @@ func (m model) activityCount(tab string) int {
 }
 
 func activityEntityType(tab string) string {
-	if tab == "Applications" {
+	switch tab {
+	case "Applications":
 		return "Application"
+	case "Tasks":
+		return "Task"
+	default:
+		return tab
 	}
-	return tab
 }
 
 func activityActionStyle(action string) lipgloss.Style {
@@ -1875,7 +1993,7 @@ func (m model) viewInsights() string {
 	}
 	b.WriteString(mutedStyle.Render("Charts count records with status Applied, Interview, Offer, or Rejected. New status changes record the application date automatically."))
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("1/2/3/4/5/6 section  ←→/hl view  r reload local data  q quit"))
+	b.WriteString(footerStyle.Render("1/2/3/4/5/6/7 section  ←→/hl view  r reload local data  q quit"))
 	return b.String()
 }
 
@@ -1918,7 +2036,7 @@ func (m model) viewSourceAttribution() string {
 	b.WriteString("\n")
 	b.WriteString(mutedStyle.Render("Edit an application with e to set Source. Use consistent labels such as LinkedIn, Company site, Referral, Recruiter, or Indeed. Older records remain Unspecified until you update them."))
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("1/2/3/4/5/6 section  ←→/hl view  r reload local data  q quit"))
+	b.WriteString(footerStyle.Render("1/2/3/4/5/6/7 section  ←→/hl view  r reload local data  q quit"))
 	return b.String()
 }
 
@@ -2002,7 +2120,7 @@ func (m model) viewMissionControl() string {
 
 	b.WriteString(mutedStyle.Render("Derived only from your local records and timeline events — no synthetic activity."))
 	b.WriteString("\n")
-	b.WriteString(footerStyle.Render("1/2/3/4/5/6 section  "))
+	b.WriteString(footerStyle.Render("1/2/3/4/5/6/7 section  "))
 	b.WriteString(keyStyle.Render("g"))
 	b.WriteString(footerStyle.Render(" set goals  "))
 	b.WriteString(keyStyle.Render("y"))
@@ -2513,6 +2631,9 @@ func (m model) viewForm() string {
 	if m.section == networkingSection {
 		labels = []string{"Name", "Company", "Title", "Relationship / Context", "Profile URL", "Last Contact (YYYY-MM-DD)", "Next Follow-up (YYYY-MM-DD)", "Notes"}
 		title = "ADD NETWORKING CONTACT"
+	} else if m.section == tasksSection {
+		labels = []string{"Task / note"}
+		title = "ADD TASK NOTE"
 	}
 	if m.form.editing {
 		title = "EDIT " + strings.TrimPrefix(title, "ADD ")
@@ -2617,7 +2738,9 @@ func (m model) sectionTabs() []string {
 	case insightsSection:
 		return []string{"Overview", "Sources"}
 	case timelineSection:
-		return []string{"All", "Applications", "Networking"}
+		return []string{"All", "Applications", "Networking", "Tasks"}
+	case tasksSection:
+		return []string{"All", "Open", "Done"}
 	default:
 		return []string{"Overview"}
 	}
@@ -2629,6 +2752,9 @@ func (m model) sectionStatuses() []string {
 	}
 	if m.section == networkingSection {
 		return contactStatuses
+	}
+	if m.section == tasksSection {
+		return []string{"Open", "Done"}
 	}
 	return nil
 }
@@ -2647,6 +2773,23 @@ func (m model) visibleIndices() []int {
 		}
 		sort.SliceStable(indices, func(a, b int) bool {
 			return m.data.Applications[indices[a]].Date > m.data.Applications[indices[b]].Date
+		})
+		return indices
+	}
+	if m.section == tasksSection {
+		indices := make([]int, 0, len(m.data.Tasks))
+		for i, task := range m.data.Tasks {
+			status := taskStatus(task)
+			if filter == "All" || strings.EqualFold(status, filter) {
+				indices = append(indices, i)
+			}
+		}
+		sort.SliceStable(indices, func(a, b int) bool {
+			left, right := m.data.Tasks[indices[a]], m.data.Tasks[indices[b]]
+			if left.Done != right.Done {
+				return !left.Done
+			}
+			return left.UpdatedAt > right.UpdatedAt
 		})
 		return indices
 	}
@@ -2678,6 +2821,14 @@ func (m model) selectedContact() (contact, bool) {
 	return m.data.Contacts[indices[m.cursor]], true
 }
 
+func (m model) selectedTask() (task, bool) {
+	indices := m.visibleIndices()
+	if m.section != tasksSection || len(indices) == 0 || m.cursor < 0 || m.cursor >= len(indices) {
+		return task{}, false
+	}
+	return m.data.Tasks[indices[m.cursor]], true
+}
+
 func (m model) hasSelection() bool {
 	return len(m.visibleIndices()) > 0 && m.cursor < len(m.visibleIndices())
 }
@@ -2689,6 +2840,9 @@ func (m model) selectedID() int {
 	if c, ok := m.selectedContact(); ok {
 		return c.ID
 	}
+	if t, ok := m.selectedTask(); ok {
+		return t.ID
+	}
 	return 0
 }
 
@@ -2698,6 +2852,9 @@ func (m model) selectedStatus() string {
 	}
 	if c, ok := m.selectedContact(); ok {
 		return c.Status
+	}
+	if t, ok := m.selectedTask(); ok {
+		return taskStatus(t)
 	}
 	return ""
 }
@@ -2719,6 +2876,9 @@ func (m model) selectedLabel() string {
 	if c, ok := m.selectedContact(); ok {
 		return c.Name + " — " + c.Company
 	}
+	if t, ok := m.selectedTask(); ok {
+		return taskSubject(t)
+	}
 	return "Selected record"
 }
 
@@ -2736,12 +2896,23 @@ func (m model) count(tab string) int {
 		if m.section == applicationsSection {
 			return len(m.data.Applications)
 		}
+		if m.section == tasksSection {
+			return len(m.data.Tasks)
+		}
 		return len(m.data.Contacts)
 	}
 	n := 0
 	if m.section == applicationsSection {
 		for _, j := range m.data.Applications {
 			if strings.EqualFold(j.Status, tab) {
+				n++
+			}
+		}
+		return n
+	}
+	if m.section == tasksSection {
+		for _, task := range m.data.Tasks {
+			if strings.EqualFold(taskStatus(task), tab) {
 				n++
 			}
 		}
@@ -2782,10 +2953,21 @@ func contactSubject(person contact) string {
 	return strings.TrimSpace(person.Name + " — " + person.Company)
 }
 
+func taskSubject(item task) string {
+	return truncate(item.Text, 60)
+}
+
+func taskStatus(item task) string {
+	if item.Done {
+		return "Done"
+	}
+	return "Open"
+}
+
 func loadData(path string) (dataFile, error) {
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		d := dataFile{NextApplicationID: 1, NextContactID: 1, NextActivityID: 1, Goals: resolvedWeeklyGoals(weeklyGoals{}), Applications: []application{}, Contacts: []contact{}, Activities: []activity{}}
+		d := dataFile{NextApplicationID: 1, NextContactID: 1, NextTaskID: 1, NextActivityID: 1, Goals: resolvedWeeklyGoals(weeklyGoals{}), Applications: []application{}, Contacts: []contact{}, Tasks: []task{}, Activities: []activity{}}
 		normalizeEasterEggs(&d)
 		return d, nil
 	}
@@ -2801,6 +2983,9 @@ func loadData(path string) (dataFile, error) {
 	}
 	if d.NextContactID < 1 {
 		d.NextContactID = maxContactID(d.Contacts) + 1
+	}
+	if d.NextTaskID < 1 {
+		d.NextTaskID = maxTaskID(d.Tasks) + 1
 	}
 	if d.NextActivityID < 1 {
 		d.NextActivityID = maxActivityID(d.Activities) + 1
@@ -2836,6 +3021,15 @@ func removeContact(items []contact, id int) []contact {
 	return items
 }
 
+func removeTask(items []task, id int) []task {
+	for i, item := range items {
+		if item.ID == id {
+			return append(items[:i], items[i+1:]...)
+		}
+	}
+	return items
+}
+
 func openURL(url string) tea.Cmd {
 	return func() tea.Msg {
 		if err := exec.Command("open", url).Run(); err != nil {
@@ -2847,7 +3041,7 @@ func openURL(url string) tea.Cmd {
 
 func statusStyle(status string) lipgloss.Style {
 	switch status {
-	case "Offer", "Interview", "Meeting", "Replied":
+	case "Offer", "Interview", "Meeting", "Replied", "Done":
 		return goodStyle
 	case "Rejected", "Archived":
 		return badStyle
@@ -2887,6 +3081,16 @@ func maxApplicationID(items []application) int {
 }
 
 func maxContactID(items []contact) int {
+	maxID := 0
+	for _, item := range items {
+		if item.ID > maxID {
+			maxID = item.ID
+		}
+	}
+	return maxID
+}
+
+func maxTaskID(items []task) int {
 	maxID := 0
 	for _, item := range items {
 		if item.ID > maxID {
